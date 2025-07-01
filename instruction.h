@@ -5,13 +5,24 @@
 #ifndef ARCH_INSTRUCTION_H
 #define ARCH_INSTRUCTION_H
 
-
 // instruction.h
+
 #pragma once
 #include "comm.h"
+#include <string>
 
-// برای خوانایی بهتر
-enum class InstrType { R, I, S, B, U, J, UNKNOWN };
+// برای خوانایی بهتر و سازگاری با cpu.cpp موجود
+enum class InstrType {
+    R,
+    I_compute,      // برای دستورات محاسباتی با مقدار ثابت (addi, andi, ...)
+    I_load,         // برای دستورات خواندن از حافظه (lw, lb, ...)
+    S,
+    B,
+    U,
+    J,
+    UNKNOWN
+    // دستور jalr توسط mnemonic در cpu.cpp مدیریت می‌شود و نیاز به نوع جداگانه ندارد.
+};
 
 class Instruction {
 public:
@@ -30,6 +41,4 @@ public:
     // تابع اصلی برای دیکود کردن
     void decode(uint32_t raw_instruction);
 };
-
-
 #endif //ARCH_INSTRUCTION_H

@@ -4,133 +4,13 @@
 
 
 // cpu.cpp
-/*
-#include "cpu.h"
-#include <chrono>
-#include <thread>
-const uint32_t PROGRAM_START_ADDR = 0x1000;
-
-CPU::CPU() : pc(PROGRAM_START_ADDR), is_running(false), fetched_instruction(0) {
-    // طبق مستندات پروژه، PC در ابتدا روی 0x1000 تنظیم می‌شود.
-}
-
-bool CPU::load_program(const std::string& filename) {
-    // فراخوانی تابع جدید حافظه با آدرس شروع صحیح
-    return memory.load_binary(filename, 0x0000);
-}
-
-
-void CPU::run() {
-    is_running = true;
-    while (is_running) {
-        step();
-        // یک تاخیر کوچک برای اینکه UI فرصت به‌روزرسانی داشته باشد
-        // سرعت را می‌توانید از UI کنترل کنید
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
-    }
-}
-
-void CPU::step() {
-    if (pc >= MEMORY_SIZE) {
-        is_running = false;
-        return;
-    }
-    fetch();
-    decode();
-    execute();
-}
-
-void CPU::stop() {
-    is_running = false;
-}
-
-CPUState CPU::get_state() const {
-    return {pc, fetched_instruction, current_instruction.mnemonic, is_running};
-}
-
-void CPU::fetch() {
-    fetched_instruction = memory.read_word(pc);
-    pc += 4; // PC را برای دستور بعدی آماده می‌کنیم
-}
-
-void CPU::decode() {
-    current_instruction.decode(fetched_instruction);
-}
-
-void CPU::execute() {
-    // برای سادگی، از یک نام مستعار استفاده می‌کنیم
-    auto& instr = current_instruction;
-    uint32_t val1 = reg_file.read(instr.rs1);
-    uint32_t val2 = reg_file.read(instr.rs2);
-
-    // اجرای دستور بر اساس نام آن
-    // دستورات هایلایت شده در عکس پیاده‌سازی شده‌اند.
-    if (instr.mnemonic == "lui") {
-        reg_file.write(instr.rd, instr.imm);
-    } else if (instr.mnemonic == "auipc") {
-        reg_file.write(instr.rd, (pc - 4) + instr.imm);
-    } else if (instr.mnemonic == "jal") {
-        reg_file.write(instr.rd, pc); // آدرس بازگشت (pc+4) در rd ذخیره می‌شود
-        pc = (pc - 4) + instr.imm; // پرش به آدرس جدید
-    } else if (instr.mnemonic == "jalr") {
-        uint32_t next_pc = pc;
-        pc = (val1 + instr.imm) & ~1U; // پرش به آدرس جدید (مطمئن می‌شویم زوج است)
-        reg_file.write(instr.rd, next_pc);
-    }
-        // Branch Instructions
-    else if (instr.mnemonic == "beq" && val1 == val2) { pc = (pc - 4) + instr.imm; }
-    else if (instr.mnemonic == "bne" && val1 != val2) { pc = (pc - 4) + instr.imm; }
-    else if (instr.mnemonic == "blt" && static_cast<int32_t>(val1) < static_cast<int32_t>(val2)) { pc = (pc - 4) + instr.imm; }
-    else if (instr.mnemonic == "bge" && static_cast<int32_t>(val1) >= static_cast<int32_t>(val2)) { pc = (pc - 4) + instr.imm; }
-    else if (instr.mnemonic == "bltu" && val1 < val2) { pc = (pc - 4) + instr.imm; }
-    else if (instr.mnemonic == "bgeu" && val1 >= val2) { pc = (pc - 4) + instr.imm; }
-        // Load Instructions
-    else if (instr.mnemonic == "lb") { reg_file.write(instr.rd, static_cast<int8_t>(memory.read_byte(val1 + instr.imm))); }
-    else if (instr.mnemonic == "lhu") { reg_file.write(instr.rd, memory.read_half(val1 + instr.imm)); }
-    else if (instr.mnemonic == "lbu") { reg_file.write(instr.rd, memory.read_byte(val1 + instr.imm)); }
-    else if (instr.mnemonic == "lw") { reg_file.write(instr.rd, memory.read_word(val1 + instr.imm)); }
-        // Store Instructions
-    else if (instr.mnemonic == "sb") { memory.write_byte(val1 + instr.imm, reg_file.read(instr.rs2)); }
-    else if (instr.mnemonic == "sh") { memory.write_half(val1 + instr.imm, reg_file.read(instr.rs2)); }
-    else if (instr.mnemonic == "sw") { memory.write_word(val1 + instr.imm, reg_file.read(instr.rs2)); }
-        // Arithmetic-Immediate Instructions
-    else if (instr.mnemonic == "addi") { reg_file.write(instr.rd, val1 + instr.imm); }
-    else if (instr.mnemonic == "slti") { reg_file.write(instr.rd, (static_cast<int32_t>(val1) < instr.imm) ? 1 : 0); }
-    else if (instr.mnemonic == "sltiu") { reg_file.write(instr.rd, (val1 < static_cast<uint32_t>(instr.imm)) ? 1 : 0); }
-    else if (instr.mnemonic == "xori") { reg_file.write(instr.rd, val1 ^ instr.imm); }
-    else if (instr.mnemonic == "ori") { reg_file.write(instr.rd, val1 | instr.imm); }
-    else if (instr.mnemonic == "andi") { reg_file.write(instr.rd, val1 & instr.imm); }
-    else if (instr.mnemonic == "slli") { reg_file.write(instr.rd, val1 << (instr.imm & 0x1F)); }
-    else if (instr.mnemonic == "srli_srai") {
-        if (instr.funct7 == 0b0100000) { // SRAI
-            reg_file.write(instr.rd, static_cast<int32_t>(val1) >> (instr.imm & 0x1F));
-        } else { // SRLI
-            reg_file.write(instr.rd, val1 >> (instr.imm & 0x1F));
-        }
-    }
-        // R-Type Instructions
-    else if (instr.mnemonic == "add") { reg_file.write(instr.rd, val1 + val2); }
-    else if (instr.mnemonic == "sub") { reg_file.write(instr.rd, val1 - val2); }
-    else if (instr.mnemonic == "sll") { reg_file.write(instr.rd, val1 << (val2 & 0x1F)); }
-    else if (instr.mnemonic == "slt") { reg_file.write(instr.rd, (static_cast<int32_t>(val1) < static_cast<int32_t>(val2)) ? 1 : 0); }
-    else if (instr.mnemonic == "sltu") { reg_file.write(instr.rd, (val1 < val2) ? 1 : 0); }
-    else if (instr.mnemonic == "xor") { reg_file.write(instr.rd, val1 ^ val2); }
-    else if (instr.mnemonic == "srl") { reg_file.write(instr.rd, val1 >> (val2 & 0x1F)); }
-    else if (instr.mnemonic == "sra") { reg_file.write(instr.rd, static_cast<int32_t>(val1) >> (val2 & 0x1F)); }
-    else if (instr.mnemonic == "or") { reg_file.write(instr.rd, val1 | val2); }
-    else if (instr.mnemonic == "and") { reg_file.write(instr.rd, val1 & val2); }
-    else {
-        // دستور ناشناخته یا پیاده‌سازی نشده
-        is_running = false;
-        // می‌توانید یک exception پرتاب کنید
-    }
-}
-*/
 
 #include "cpu.h"
-#include <sstream> // for std::stringstream
-#include <iomanip> // for std::hex
+#include <sstream>
+#include <iomanip>
+#include <cstdint>
 
+// آدرس شروع برنامه
 const uint32_t PROGRAM_START_ADDR = 0x1000;
 
 CPU::CPU() {
@@ -153,6 +33,7 @@ void CPU::reset() {
 
 bool CPU::load_program(const std::string& filename) {
     reset();
+    // در شبیه‌ساز ما، برنامه از آدرس 0x0000 بارگذاری می‌شود اما اجرا از 0x1000 شروع می‌شود.
     bool success = memory.load_binary(filename, 0x0000);
     if (success) {
         current_stage = PipelineStage::FETCH;
@@ -175,7 +56,7 @@ CycleChanges CPU::clock_tick() {
         halted = true;
         return { "PC out of bounds. Halting.", PipelineStage::IDLE, {}, {}, {}, pc, true };
     }
-    
+
     if (current_stage == PipelineStage::IDLE) {
         current_stage = PipelineStage::FETCH;
     }
@@ -194,10 +75,10 @@ CycleChanges CPU::clock_tick() {
 
 CycleChanges CPU::do_fetch() {
     fetched_instruction_raw = memory.read_word(pc);
-    
+
     std::stringstream rtl;
-    rtl << "IR <- M[0x" << std::hex << pc << "]";
-    
+    rtl << "T0: IR <- M[0x" << std::hex << std::setfill('0') << std::setw(4) << pc << "]";
+
     current_stage = PipelineStage::DECODE;
 
     CycleChanges changes;
@@ -209,137 +90,196 @@ CycleChanges CPU::do_fetch() {
 }
 
 CycleChanges CPU::do_decode() {
+    uint32_t pc_before_inc = pc;
     current_instruction.decode(fetched_instruction_raw);
-    
+
     if (current_instruction.type == InstrType::UNKNOWN) {
         halted = true;
-        return { "Unknown instruction. Halting.", PipelineStage::DECODE, {}, {}, {}, pc, true};
+        std::stringstream err;
+        err << "Unknown instruction code: 0x" << std::hex << fetched_instruction_raw << ". Halting.";
+        return { err.str(), PipelineStage::DECODE, {}, {}, {}, pc, true};
     }
 
+    // خواندن رجیسترها حتی اگر استفاده نشوند
     reg_A_val = reg_file.read(current_instruction.rs1);
     reg_B_val = reg_file.read(current_instruction.rs2);
-    
-    pc += 4;
-    
+
     std::stringstream rtl;
-    rtl << "Decode: " << current_instruction.mnemonic << "; A<-Reg[" << (int)current_instruction.rs1 
-        << "], B<-Reg[" << (int)current_instruction.rs2 << "]; PC<-PC+4";
+
+    // منطق به‌روزرسانی PC بر اساس نوع دستور
+    // برای دستورات انشعابی (Branch) و JAL/JALR، مقدار PC در مرحله Execute مشخص می‌شود.
+    if (current_instruction.type != InstrType::B && current_instruction.type != InstrType::J && current_instruction.mnemonic != "jalr") {
+        pc += 4;
+        rtl << "T1: PC <- PC + 4 (0x" << std::hex << pc << ")";
+    } else {
+        rtl << "T1: Decode " << current_instruction.mnemonic << ", PC update deferred";
+    }
 
     current_stage = PipelineStage::EXECUTE;
 
     CycleChanges changes;
     changes.rtl_description = rtl.str();
     changes.stage = PipelineStage::DECODE;
-    changes.current_pc = pc; // مقدار PC بعد از افزایش است
+    changes.current_pc = pc_before_inc;
     changes.instruction_finished = false;
     return changes;
 }
 
+// [اصلاح اساسی] این تابع اکنون تمام دستورات را پوشش می‌دهد
 CycleChanges CPU::do_execute() {
     auto& instr = current_instruction;
     std::stringstream rtl;
-    rtl << "Execute: ";
+    // PC در زمان fetch این دستور. برای branch/jump ها PC هنوز آپدیت نشده
+    uint32_t pc_at_fetch = (instr.type == InstrType::B || instr.type == InstrType::J || instr.mnemonic == "jalr") ? pc : pc - 4;
 
     CycleChanges changes;
     changes.stage = PipelineStage::EXECUTE;
     changes.instruction_finished = false;
+    bool write_needed = false;
 
-    switch (instr.type) {
-        case InstrType::R:
-            if (instr.mnemonic == "add") { alu_output = reg_A_val + reg_B_val; rtl << "ALU_out <- A + B"; }
-            else if (instr.mnemonic == "sub") { alu_output = reg_A_val - reg_B_val; rtl << "ALU_out <- A - B"; }
-                // ... (سایر دستورات R-type)
-            else { alu_output = 0; rtl << "Unhandled R-type"; }
-            current_stage = PipelineStage::WRITE_BACK;
-            break;
+    // توابع کمکی برای فرمت‌دهی خواناتر RTL
+    auto format_rtl_reg = [&](const std::string& op, uint32_t valA, uint32_t valB) {
+        rtl << "x" << (int)instr.rd << " <- x" << (int)instr.rs1 << " " << op << " x" << (int)instr.rs2
+            << "  (0x" << std::hex << alu_output << " <- 0x" << valA << " " << op << " 0x" << valB << ")";
+    };
+    auto format_rtl_imm = [&](const std::string& op) {
+        rtl << "x" << (int)instr.rd << " <- x" << (int)instr.rs1 << " " << op << " imm"
+            << "  (0x" << std::hex << alu_output << " <- 0x" << reg_A_val << " " << op << " 0x" << instr.imm << ")";
+    };
 
-        case InstrType::I:
-            if (instr.mnemonic == "addi") { alu_output = reg_A_val + instr.imm; rtl << "ALU_out <- A + Imm"; }
-            else if (instr.mnemonic == "lw" || instr.mnemonic == "lb" || instr.mnemonic == "lh" || instr.mnemonic == "lbu" || instr.mnemonic == "lhu") {
-                alu_output = reg_A_val + instr.imm;
-                rtl << "ALU_out <- A + Imm (Address Calc)";
-                current_stage = PipelineStage::MEMORY;
-            }
-                // ... (سایر دستورات I-type)
-            else { alu_output = 0; rtl << "Unhandled I-type"; }
-            if (current_stage != PipelineStage::MEMORY) current_stage = PipelineStage::WRITE_BACK;
-            break;
+    // دستورات محاسباتی، منطقی و پرش‌های غیرشرطی
+    if (instr.type == InstrType::R || instr.type == InstrType::I_compute || instr.type == InstrType::U || instr.type == InstrType::J) {
+        rtl << "T2: ";
+        write_needed = true; // اکثر این دستورات در رجیستر می‌نویسند
 
-        case InstrType::S:
-            alu_output = reg_A_val + instr.imm;
-            rtl << "ALU_out <- A + Imm (Address Calc)";
-            current_stage = PipelineStage::MEMORY;
-            break;
+        // --- U-Type ---
+        if (instr.mnemonic == "lui") { alu_output = instr.imm; rtl << "x" << (int)instr.rd << " <- imm (0x" << std::hex << alu_output << ")"; }
+        else if (instr.mnemonic == "auipc") { alu_output = pc_at_fetch + instr.imm; rtl << "x" << (int)instr.rd << " <- PC + imm (0x" << std::hex << pc_at_fetch << " + 0x" << instr.imm << " = 0x" << alu_output << ")";}
+            // --- J-Type ---
+        else if (instr.mnemonic == "jal") { alu_output = pc_at_fetch + 4; pc = pc_at_fetch + instr.imm; rtl << "Reg[rd] <- PC+4, PC <- PC+imm (x" << (int)instr.rd << "=0x" << std::hex << alu_output << ", PC=0x" << pc << ")"; }
+            // --- R-Type ---
+        else if (instr.mnemonic == "add") { alu_output = reg_A_val + reg_B_val; format_rtl_reg("+", reg_A_val, reg_B_val); }
+        else if (instr.mnemonic == "sub") { alu_output = reg_A_val - reg_B_val; format_rtl_reg("-", reg_A_val, reg_B_val); }
+        else if (instr.mnemonic == "sll") { alu_output = reg_A_val << (reg_B_val & 0x1F); format_rtl_reg("<<", reg_A_val, reg_B_val); }
+        else if (instr.mnemonic == "slt") { alu_output = (static_cast<int32_t>(reg_A_val) < static_cast<int32_t>(reg_B_val)) ? 1 : 0; format_rtl_reg("< (s)", reg_A_val, reg_B_val); }
+        else if (instr.mnemonic == "sltu") { alu_output = (reg_A_val < reg_B_val) ? 1 : 0; format_rtl_reg("< (u)", reg_A_val, reg_B_val); }
+        else if (instr.mnemonic == "xor") { alu_output = reg_A_val ^ reg_B_val; format_rtl_reg("^", reg_A_val, reg_B_val); }
+        else if (instr.mnemonic == "srl") { alu_output = reg_A_val >> (reg_B_val & 0x1F); format_rtl_reg(">> (l)", reg_A_val, reg_B_val); }
+        else if (instr.mnemonic == "sra") { alu_output = static_cast<int32_t>(reg_A_val) >> (reg_B_val & 0x1F); format_rtl_reg(">> (a)", reg_A_val, reg_B_val); }
+        else if (instr.mnemonic == "or") { alu_output = reg_A_val | reg_B_val; format_rtl_reg("|", reg_A_val, reg_B_val); }
+        else if (instr.mnemonic == "and") { alu_output = reg_A_val & reg_B_val; format_rtl_reg("&", reg_A_val, reg_B_val); }
+            // --- M-Extension (R-Type) ---
+        else if (instr.mnemonic == "mul") { alu_output = reg_A_val * reg_B_val; format_rtl_reg("*", reg_A_val, reg_B_val); }
+        else if (instr.mnemonic == "mulh") { int64_t res = static_cast<int64_t>(static_cast<int32_t>(reg_A_val)) * static_cast<int64_t>(static_cast<int32_t>(reg_B_val)); alu_output = res >> 32; format_rtl_reg("*h (s)", reg_A_val, reg_B_val); }
+        else if (instr.mnemonic == "mulhsu") { int64_t res = static_cast<int64_t>(static_cast<int32_t>(reg_A_val)) * static_cast<uint64_t>(reg_B_val); alu_output = res >> 32; format_rtl_reg("*h (su)", reg_A_val, reg_B_val); }
+        else if (instr.mnemonic == "mulhu") { uint64_t res = static_cast<uint64_t>(reg_A_val) * static_cast<uint64_t>(reg_B_val); alu_output = res >> 32; format_rtl_reg("*h (u)", reg_A_val, reg_B_val); }
+        else if (instr.mnemonic == "div") { if (reg_B_val == 0) alu_output = -1; else if (reg_A_val == 0x80000000 && static_cast<int32_t>(reg_B_val) == -1) alu_output = 0x80000000; else alu_output = static_cast<int32_t>(reg_A_val) / static_cast<int32_t>(reg_B_val); format_rtl_reg("/ (s)", reg_A_val, reg_B_val); }
+        else if (instr.mnemonic == "divu") { if (reg_B_val == 0) alu_output = 0xFFFFFFFF; else alu_output = reg_A_val / reg_B_val; format_rtl_reg("/ (u)", reg_A_val, reg_B_val); }
+        else if (instr.mnemonic == "rem") { if (reg_B_val == 0) alu_output = reg_A_val; else if (reg_A_val == 0x80000000 && static_cast<int32_t>(reg_B_val) == -1) alu_output = 0; else alu_output = static_cast<int32_t>(reg_A_val) % static_cast<int32_t>(reg_B_val); format_rtl_reg("% (s)", reg_A_val, reg_B_val); }
+        else if (instr.mnemonic == "remu") { if (reg_B_val == 0) alu_output = reg_A_val; else alu_output = reg_A_val % reg_B_val; format_rtl_reg("% (u)", reg_A_val, reg_B_val); }
+            // --- I-Type ---
+        else if (instr.mnemonic == "addi") { alu_output = reg_A_val + instr.imm; format_rtl_imm("+"); }
+        else if (instr.mnemonic == "slti") { alu_output = (static_cast<int32_t>(reg_A_val) < static_cast<int32_t>(instr.imm)) ? 1 : 0; format_rtl_imm("< (s)"); }
+        else if (instr.mnemonic == "sltiu") { alu_output = (reg_A_val < static_cast<uint32_t>(instr.imm)) ? 1 : 0; format_rtl_imm("< (u)"); }
+        else if (instr.mnemonic == "xori") { alu_output = reg_A_val ^ instr.imm; format_rtl_imm("^"); }
+        else if (instr.mnemonic == "ori") { alu_output = reg_A_val | instr.imm; format_rtl_imm("|"); }
+        else if (instr.mnemonic == "andi") { alu_output = reg_A_val & instr.imm; format_rtl_imm("&"); }
+        else if (instr.mnemonic == "slli") { alu_output = reg_A_val << (instr.imm & 0x1F); format_rtl_imm("<<"); }
+        else if (instr.mnemonic == "srli") { alu_output = reg_A_val >> (instr.imm & 0x1F); format_rtl_imm(">> (l)"); }
+        else if (instr.mnemonic == "srai") { alu_output = static_cast<int32_t>(reg_A_val) >> (instr.imm & 0x1F); format_rtl_imm(">> (a)"); }
+        else { rtl << "UNKNOWN ALU/JUMP INSTRUCTION: " << instr.mnemonic; write_needed = false; }
 
-        case InstrType::B:
-        { // <-- شروع بلوک برای محدود کردن حوزه متغیر
-            bool condition = false; // حالا 'condition' فقط در این بلوک وجود دارد
-            if (instr.mnemonic == "beq" && reg_A_val == reg_B_val) condition = true;
-            else if (instr.mnemonic == "bne" && reg_A_val != reg_B_val) condition = true;
-            else if (instr.mnemonic == "blt" && static_cast<int32_t>(reg_A_val) < static_cast<int32_t>(reg_B_val)) condition = true;
-            else if (instr.mnemonic == "bge" && static_cast<int32_t>(reg_A_val) >= static_cast<int32_t>(reg_B_val)) condition = true;
-            else if (instr.mnemonic == "bltu" && reg_A_val < reg_B_val) condition = true;
-            else if (instr.mnemonic == "bgeu" && reg_A_val >= reg_B_val) condition = true;
+        current_stage = PipelineStage::FETCH; // این دستورات در 3 کلاک تمام می‌شوند
+        changes.instruction_finished = true;
+    }
+        // دستورات دسترسی به حافظه (Load)
+    else if (instr.type == InstrType::I_load) {
+        rtl << "T2: MAR <- x" << (int)instr.rs1 << " + imm";
+        alu_output = reg_A_val + instr.imm;
+        rtl << "  (0x" << std::hex << alu_output << " <- 0x" << reg_A_val << " + 0x" << instr.imm << ")";
+        current_stage = PipelineStage::MEMORY; // نیاز به مرحله حافظه دارد
+    }
+        // دستورات ذخیره‌سازی (Store)
+    else if (instr.type == InstrType::S) {
+        rtl << "T2: MAR <- x" << (int)instr.rs1 << " + imm";
+        alu_output = reg_A_val + instr.imm;
+        rtl << "  (0x" << std::hex << alu_output << " <- 0x" << reg_A_val << " + 0x" << instr.imm << ")";
+        current_stage = PipelineStage::MEMORY; // نیاز به مرحله حافظه دارد
+    }
+        // دستورات انشعاب (Branch)
+    else if (instr.type == InstrType::B) {
+        rtl << "T2: ";
+        bool condition = false;
+        if      (instr.mnemonic == "beq")  { condition = (reg_A_val == reg_B_val); rtl << "if (x" << (int)instr.rs1 << " == x" << (int)instr.rs2 << ")";}
+        else if (instr.mnemonic == "bne")  { condition = (reg_A_val != reg_B_val); rtl << "if (x" << (int)instr.rs1 << " != x" << (int)instr.rs2 << ")";}
+        else if (instr.mnemonic == "blt")  { condition = (static_cast<int32_t>(reg_A_val) < static_cast<int32_t>(reg_B_val)); rtl << "if (x" << (int)instr.rs1 << " < x" << (int)instr.rs2 << " signed)";}
+        else if (instr.mnemonic == "bge")  { condition = (static_cast<int32_t>(reg_A_val) >= static_cast<int32_t>(reg_B_val)); rtl << "if (x" << (int)instr.rs1 << " >= x" << (int)instr.rs2 << " signed)";}
+        else if (instr.mnemonic == "bltu") { condition = (reg_A_val < reg_B_val); rtl << "if (x" << (int)instr.rs1 << " < x" << (int)instr.rs2 << " unsigned)";}
+        else if (instr.mnemonic == "bgeu") { condition = (reg_A_val >= reg_B_val); rtl << "if (x" << (int)instr.rs1 << " >= x" << (int)instr.rs2 << " unsigned)";}
 
-            rtl << "IF (condition) then branch";
-            if (condition) {
-                pc = (pc - 4) + instr.imm; // PC قبلا +4 شده، پس برای محاسبه از مبدا درست، آن را برمیگردانیم
-            }
-            rtl << "; New PC = 0x" << std::hex << pc;
+        rtl << " (0x" << std::hex << reg_A_val << " vs 0x" << reg_B_val << ")";
 
-            current_stage = PipelineStage::FETCH;
-            changes.instruction_finished = true;
-            changes.rtl_description = rtl.str();
-            changes.current_pc = pc;
-            return changes; // این case مستقیما برمی‌گردد
-        } // <-- پایان بلوک
+        if (condition) {
+            pc = pc_at_fetch + instr.imm;
+            rtl << " -> Taken. PC <- PC_fetch + imm (0x" << std::hex << pc << ")";
+        } else {
+            pc = pc_at_fetch + 4;
+            rtl << " -> Not Taken. PC <- PC_fetch + 4 (0x" << std::hex << pc << ")";
+        }
 
-        case InstrType::U:
-            if (instr.mnemonic == "lui") { alu_output = instr.imm; rtl << "ALU_out <- imm"; }
-            else if (instr.mnemonic == "auipc") { alu_output = (pc - 4) + instr.imm; rtl << "ALU_out <- PC_fetch + imm"; }
-            current_stage = PipelineStage::WRITE_BACK;
-            break;
+        current_stage = PipelineStage::FETCH;
+        changes.instruction_finished = true;
+    }
+        // پرش غیرمستقیم (JALR)
+    else if (instr.mnemonic == "jalr") {
+        alu_output = pc_at_fetch + 4; // آدرس بازگشت
+        pc = (reg_A_val + instr.imm) & ~1U; // آدرس پرش (بیت آخر صفر می‌شود)
+        rtl << "T2: Temp <- PC+4; Reg[rd] <- Temp, PC <- (Reg[rs1]+imm)&~1"
+            << " (x" << (int)instr.rd << "=0x" << std::hex << alu_output << ", PC=0x" << pc << ")";
+        write_needed = true;
+        current_stage = PipelineStage::FETCH;
+        changes.instruction_finished = true;
+    }
 
-        case InstrType::J: // JAL
-            alu_output = pc; // آدرس بازگشت (PC در این لحظه PC+4 است)
-            pc = (pc - 4) + instr.imm;
-            rtl << "Reg[rd] <- PC+4; PC <- PC_fetch + imm. New PC = 0x" << std::hex << pc;
-            current_stage = PipelineStage::WRITE_BACK;
-            break;
-
-        default:
-            halted = true;
-            changes.rtl_description = "Unknown instruction type in Execute. Halting.";
-            changes.instruction_finished = true;
-            changes.current_pc = pc;
-            return changes;
+    // عمل نوشتن در رجیستر برای تمام دستوراتی که نیاز دارند
+    if (write_needed && instr.rd != 0) {
+        reg_file.write(instr.rd, alu_output);
+        changes.register_write = {{instr.rd, alu_output}};
+    } else if (write_needed && instr.rd == 0) {
+        rtl << " (write to x0 ignored)";
     }
 
     changes.rtl_description = rtl.str();
-    changes.current_pc = pc;
+    changes.current_pc = pc_at_fetch;
     return changes;
 }
+
 CycleChanges CPU::do_memory() {
     auto& instr = current_instruction;
     std::stringstream rtl;
 
     CycleChanges changes;
     changes.stage = PipelineStage::MEMORY;
-    changes.current_pc = pc;
+    changes.current_pc = pc - 4; // PC در زمان fetch
+    changes.instruction_finished = false;
 
-    if (instr.type == InstrType::S) { // Store
-        rtl << "M[0x" << std::hex << alu_output << "] <- B (value: 0x" << reg_B_val << ")";
-        memory.write_word(alu_output, reg_B_val); // برای سادگی فقط sw
+    // دستورات ذخیره‌سازی (Store)
+    if (instr.type == InstrType::S) {
+        rtl << "T3: ";
+        if (instr.mnemonic == "sb") { memory.write_byte(alu_output, reg_B_val); rtl << "M[0x" << std::hex << alu_output << "] <- x" << (int)instr.rs2 << "[7:0] (val=0x" << (reg_B_val & 0xFF) << ")"; }
+        else if (instr.mnemonic == "sh") { memory.write_half(alu_output, reg_B_val); rtl << "M[0x" << std::hex << alu_output << "] <- x" << (int)instr.rs2 << "[15:0] (val=0x" << (reg_B_val & 0xFFFF) << ")"; }
+        else if (instr.mnemonic == "sw") { memory.write_word(alu_output, reg_B_val); rtl << "M[0x" << std::hex << alu_output << "] <- x" << (int)instr.rs2 << "[31:0] (val=0x" << reg_B_val << ")"; }
+
         changes.memory_write = {{alu_output, reg_B_val}};
         current_stage = PipelineStage::FETCH;
-        changes.instruction_finished = true;
-    } 
-    else if (instr.type == InstrType::I) { // Load
-        memory_data = memory.read_word(alu_output); // برای سادگی فقط lw
-        rtl << "MDR <- M[0x" << std::hex << alu_output << "] (value: 0x" << memory_data << ")";
+        changes.instruction_finished = true; // دستور تمام شد (4 کلاک)
+    }
+        // دستورات خواندن (Load)
+    else if (instr.type == InstrType::I_load) {
+        rtl << "T3: MDR <- M[MAR] (M[0x" << std::hex << alu_output << "])";
+        memory_data = memory.read_word(alu_output); // خواندن کلمه کامل برای سادگی
         changes.memory_read_addr = alu_output;
-        current_stage = PipelineStage::WRITE_BACK;
-        changes.instruction_finished = false;
+        current_stage = PipelineStage::WRITE_BACK; // برای load ها به WB می‌رویم
     }
     changes.rtl_description = rtl.str();
     return changes;
@@ -349,30 +289,28 @@ CycleChanges CPU::do_write_back() {
     auto& instr = current_instruction;
     uint32_t data_to_write = 0;
     std::stringstream rtl;
-    
-    if (instr.type == InstrType::R || instr.mnemonic == "addi" || instr.type == InstrType::U) {
-        data_to_write = alu_output;
-        rtl << "Reg[" << (int)instr.rd << "] <- ALU_out (0x" << std::hex << data_to_write << ")";
-    } else if (instr.type == InstrType::I && instr.mnemonic != "addi") { // Load
-        data_to_write = memory_data;
-        rtl << "Reg[" << (int)instr.rd << "] <- MDR (0x" << std::hex << data_to_write << ")";
-    } else if (instr.type == InstrType::J) { // jal
-        data_to_write = alu_output;
-        rtl << "Reg[" << (int)instr.rd << "] <- PC+4 (0x" << std::hex << data_to_write << ")";
-    }
+
+    rtl << "T4: ";
+    if (instr.mnemonic == "lb") { data_to_write = static_cast<int32_t>(static_cast<int8_t>(memory_data)); rtl << "x" << (int)instr.rd << " <- sign_extend(MDR[7:0])"; }
+    else if (instr.mnemonic == "lh") { data_to_write = static_cast<int32_t>(static_cast<int16_t>(memory_data)); rtl << "x" << (int)instr.rd << " <- sign_extend(MDR[15:0])"; }
+    else if (instr.mnemonic == "lw") { data_to_write = memory_data; rtl << "x" << (int)instr.rd << " <- MDR[31:0]"; }
+    else if (instr.mnemonic == "lbu") { data_to_write = memory_data & 0xFF; rtl << "x" << (int)instr.rd << " <- zero_extend(MDR[7:0])"; }
+    else if (instr.mnemonic == "lhu") { data_to_write = memory_data & 0xFFFF; rtl << "x" << (int)instr.rd << " <- zero_extend(MDR[15:0])"; }
+
+    rtl << "  (val=0x" << std::hex << data_to_write << ")";
 
     CycleChanges changes;
     changes.stage = PipelineStage::WRITE_BACK;
-    changes.current_pc = pc;
-    changes.instruction_finished = true; // این آخرین مرحله است
-    
+    changes.current_pc = pc - 4; // PC در زمان fetch
+    changes.instruction_finished = true; // دستور تمام شد (5 کلاک)
+
     if (instr.rd != 0) {
         reg_file.write(instr.rd, data_to_write);
         changes.register_write = {{instr.rd, data_to_write}};
     } else {
         rtl << " (write to x0 ignored)";
     }
-    
+
     changes.rtl_description = rtl.str();
     current_stage = PipelineStage::FETCH;
     return changes;
