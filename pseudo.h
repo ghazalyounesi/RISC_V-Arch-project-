@@ -1,9 +1,5 @@
-//
-// Created by ghazal on 6/17/25.
-//
-
-#ifndef ARCH_PROJECT_PSEUDO_H
-#define ARCH_PROJECT_PSEUDO_H
+#ifndef PSEUDO_H
+#define PSEUDO_H
 
 
 // pseudo.h
@@ -22,4 +18,4 @@ private:
 };
 
 
-#endif //ARCH_PROJECT_PSEUDO_H
+#endif //PSEUDO_H

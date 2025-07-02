@@ -1,0 +1,15 @@
+release/assemblerwindow.o
+release/cpu.o
+release/encoder.o
+release/instruction.o
+release/main.o
+release/mainwindow.o
+release/memory.o
+release/parser.o
+release/pseudo.o
+release/register_file.o
+release/simulatorwindow.o
+release/symbol_table.o
+release/moc_assemblerwindow.o
+release/moc_mainwindow.o
+release/moc_simulatorwindow.o

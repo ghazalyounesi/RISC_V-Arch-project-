@@ -1,9 +1,5 @@
-//
-// Created by ghazal on 6/17/25.
-//
-
-#ifndef ARCH_PROJECT_ENCODER_H
-#define ARCH_PROJECT_ENCODER_H
+#ifndef ENCODER_H
+#define ENCODER_H
 
 
 // encoder.h
@@ -31,4 +27,4 @@ private:
 };
 
 
-#endif //ARCH_PROJECT_ENCODER_H
+#endif //ENCODER_H

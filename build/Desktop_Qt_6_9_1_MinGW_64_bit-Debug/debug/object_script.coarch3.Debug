@@ -1,0 +1,15 @@
+debug/assemblerwindow.o
+debug/cpu.o
+debug/encoder.o
+debug/instruction.o
+debug/main.o
+debug/mainwindow.o
+debug/memory.o
+debug/parser.o
+debug/pseudo.o
+debug/register_file.o
+debug/simulatorwindow.o
+debug/symbol_table.o
+debug/moc_assemblerwindow.o
+debug/moc_mainwindow.o
+debug/moc_simulatorwindow.o

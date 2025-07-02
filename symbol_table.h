@@ -1,9 +1,6 @@
-//
-// Created by ghazal on 6/17/25.
-//
 
-#ifndef ARCH_PROJECT_SYMBOL_TABLE_H
-#define ARCH_PROJECT_SYMBOL_TABLE_H
+#ifndef SYMBOL_TABLE_H
+#define SYMBOL_TABLE_H
 
 
 // symbol_table.h
@@ -23,3 +20,13 @@ private:
 
 
 #endif //ARCH_PROJECT_SYMBOL_TABLE_H
+#ifndef SYMBOL_TABLE_H
+#define SYMBOL_TABLE_H
+
+class symbol_table
+{
+public:
+    symbol_table();
+};
+
+#endif // SYMBOL_TABLE_H

@@ -1,9 +1,3 @@
-//
-// Created by ghazal on 6/17/25.
-//
-
-
-// symbol_table.cpp
 #include "symbol_table.h"
 
 void SymbolTable::add_label(const std::string& label, uint32_t address) {

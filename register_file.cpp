@@ -1,9 +1,3 @@
-//
-// Created by ghazal on 6/18/25.
-//
-
-
-// register_file.cpp
 #include "register_file.h"
 #include <iostream>
 #include <iomanip>
@@ -45,4 +39,9 @@ void RegisterFile::dump() const {
         }
     }
     std::cout << "============================\n";
+}
+
+// --- پیاده‌سازی تابع جدید ---
+std::array<uint32_t, 32> RegisterFile::get_all_registers() const {
+    return registers;
 }

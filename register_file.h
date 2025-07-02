@@ -1,9 +1,5 @@
-//
-// Created by ghazal on 6/18/25.
-//
-
-#ifndef ARCH_REGISTER_FILE_H
-#define ARCH_REGISTER_FILE_H
+#ifndef REGISTER_FILE_H
+#define REGISTER_FILE_H
 
 
 // register_file.h
@@ -37,6 +33,7 @@ public:
      * @brief تابعی کمکی برای نمایش محتوای تمام رجیسترها (برای دیباگ).
      */
     void dump() const;
+    std::array<uint32_t, 32> get_all_registers() const;
 
 private:
     // آرایه‌ای با اندازه ثابت برای نگهداری ۳۲ رجیستر ۳۲ بیتی.
@@ -45,4 +42,4 @@ private:
 
 
 
-#endif //ARCH_REGISTER_FILE_H
+#endif //REGISTER_FILE
