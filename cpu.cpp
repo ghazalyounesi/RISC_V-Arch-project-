@@ -173,11 +173,33 @@ CycleChanges CPU::do_execute() {
         else if (instr.mnemonic == "mulh") { int64_t res = static_cast<int64_t>(static_cast<int32_t>(reg_A_val)) * static_cast<int64_t>(static_cast<int32_t>(reg_B_val)); alu_output = res >> 32; format_rtl_reg("*h (s)", reg_A_val, reg_B_val); }
         else if (instr.mnemonic == "mulhsu") { int64_t res = static_cast<int64_t>(static_cast<int32_t>(reg_A_val)) * static_cast<uint64_t>(reg_B_val); alu_output = res >> 32; format_rtl_reg("*h (su)", reg_A_val, reg_B_val); }
         else if (instr.mnemonic == "mulhu") { uint64_t res = static_cast<uint64_t>(reg_A_val) * static_cast<uint64_t>(reg_B_val); alu_output = res >> 32; format_rtl_reg("*h (u)", reg_A_val, reg_B_val); }
-        else if (instr.mnemonic == "div") { if (reg_B_val == 0) alu_output = -1; else if (reg_A_val == 0x80000000 && static_cast<int32_t>(reg_B_val) == -1) alu_output = 0x80000000; else alu_output = static_cast<int32_t>(reg_A_val) / static_cast<int32_t>(reg_B_val); format_rtl_reg("/ (s)", reg_A_val, reg_B_val); }
-        else if (instr.mnemonic == "divu") { if (reg_B_val == 0) alu_output = 0xFFFFFFFF; else alu_output = reg_A_val / reg_B_val; format_rtl_reg("/ (u)", reg_A_val, reg_B_val); }
-        else if (instr.mnemonic == "rem") { if (reg_B_val == 0) alu_output = reg_A_val; else if (reg_A_val == 0x80000000 && static_cast<int32_t>(reg_B_val) == -1) alu_output = 0; else alu_output = static_cast<int32_t>(reg_A_val) % static_cast<int32_t>(reg_B_val); format_rtl_reg("% (s)", reg_A_val, reg_B_val); }
-        else if (instr.mnemonic == "remu") { if (reg_B_val == 0) alu_output = reg_A_val; else alu_output = reg_A_val % reg_B_val; format_rtl_reg("% (u)", reg_A_val, reg_B_val); }
-            // --- I-Type ---
+        else if (instr.mnemonic == "div") {
+            int32_t dividend = static_cast<int32_t>(reg_A_val);
+            int32_t divisor = static_cast<int32_t>(reg_B_val);
+            if (divisor == 0) alu_output = 0xFFFFFFFF; // در RISC-V تقسیم بر صفر برای signed، همه بیت‌ها را یک می‌کند
+            else if (dividend == INT32_MIN && divisor == -1) alu_output = INT32_MIN; // حالت سرریز
+            else alu_output = dividend / divisor;
+            format_rtl_reg("/ (s)", reg_A_val, reg_B_val);
+        }
+        else if (instr.mnemonic == "divu") {
+            if (reg_B_val == 0) alu_output = 0xFFFFFFFF;
+            else alu_output = reg_A_val / reg_B_val;
+            format_rtl_reg("/ (u)", reg_A_val, reg_B_val);
+        }
+        else if (instr.mnemonic == "rem") {
+            int32_t dividend = static_cast<int32_t>(reg_A_val);
+            int32_t divisor = static_cast<int32_t>(reg_B_val);
+            if (divisor == 0) alu_output = dividend;
+            else if (dividend == INT32_MIN && divisor == -1) alu_output = 0;
+            else alu_output = dividend % divisor;
+            format_rtl_reg("% (s)", reg_A_val, reg_B_val);
+        }
+        else if (instr.mnemonic == "remu") {
+            if (reg_B_val == 0) alu_output = reg_A_val;
+            else alu_output = reg_A_val % reg_B_val;
+            format_rtl_reg("% (u)", reg_A_val, reg_B_val);
+        }
+           // --- I-Type ---
         else if (instr.mnemonic == "addi") { alu_output = reg_A_val + instr.imm; format_rtl_imm("+"); }
         else if (instr.mnemonic == "slti") { alu_output = (static_cast<int32_t>(reg_A_val) < static_cast<int32_t>(instr.imm)) ? 1 : 0; format_rtl_imm("< (s)"); }
         else if (instr.mnemonic == "sltiu") { alu_output = (reg_A_val < static_cast<uint32_t>(instr.imm)) ? 1 : 0; format_rtl_imm("< (u)"); }
@@ -192,6 +214,17 @@ CycleChanges CPU::do_execute() {
         current_stage = PipelineStage::FETCH; // این دستورات در 3 کلاک تمام می‌شوند
         changes.instruction_finished = true;
     }
+        // پرش غیرمستقیم (JALR)
+    else if (instr.mnemonic == "jalr") {
+        alu_output = pc_at_fetch + 4; // آدرس بازگشت
+        pc = (reg_A_val + instr.imm) & ~1U; // آدرس پرش (بیت آخر صفر می‌شود)
+        rtl << "T2: Temp <- PC+4; Reg[rd] <- Temp, PC <- (Reg[rs1]+imm)&~1"
+            << " (x" << (int)instr.rd << "=0x" << std::hex << alu_output << ", PC=0x" << pc << ")";
+        write_needed = true;
+        current_stage = PipelineStage::FETCH;
+        changes.instruction_finished = true;
+    }
+
         // دستورات دسترسی به حافظه (Load)
     else if (instr.type == InstrType::I_load) {
         rtl << "T2: MAR <- x" << (int)instr.rs1 << " + imm";
@@ -227,16 +260,6 @@ CycleChanges CPU::do_execute() {
             rtl << " -> Not Taken. PC <- PC_fetch + 4 (0x" << std::hex << pc << ")";
         }
 
-        current_stage = PipelineStage::FETCH;
-        changes.instruction_finished = true;
-    }
-        // پرش غیرمستقیم (JALR)
-    else if (instr.mnemonic == "jalr") {
-        alu_output = pc_at_fetch + 4; // آدرس بازگشت
-        pc = (reg_A_val + instr.imm) & ~1U; // آدرس پرش (بیت آخر صفر می‌شود)
-        rtl << "T2: Temp <- PC+4; Reg[rd] <- Temp, PC <- (Reg[rs1]+imm)&~1"
-            << " (x" << (int)instr.rd << "=0x" << std::hex << alu_output << ", PC=0x" << pc << ")";
-        write_needed = true;
         current_stage = PipelineStage::FETCH;
         changes.instruction_finished = true;
     }

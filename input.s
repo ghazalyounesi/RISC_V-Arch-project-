@@ -1,154 +1,104 @@
-# =================================================================
-# بخش داده (Data Section)
-# این بخش در آدرس 0x100 حافظه قرار می‌گیرد.
-# =================================================================
-.org 0x100
+    .section .data
+    .org 0x100
 
-initial_data_word:      .word   0x12345678
-initial_data_half:      .half   0xABCD
-initial_data_byte:      .byte   0xFE         # یک عدد منفی در فرمت ۸ بیتی (-2)
+val1:   .word 10
+val2:   .word 3
+val3:   .word -20
+arr:    .byte 0x01, 0x02, 0x03, 0x04
 
-.align 2 # تضمین می‌کند که آدرس بعدی بر 4 بخش‌پذیر باشد
-initial_data_unsigned:  .word   0xFFFFFFFF   # یک عدد بزرگ بدون علامت (-1 به صورت علامت‌دار)
-
-# فضایی برای ذخیره نتایج تست دستورات store
-result_storage_word:    .word   0
-result_storage_half:    .word   0
-result_storage_byte:    .word   0
-
-
-# =================================================================
-# بخش کد (Code Section)
-# کد برنامه از آدرس 0x1000 شروع می‌شود.
-# =================================================================
-.org 0x1000
-
+    .section .text
+    .org 0x1000
+    .globl _start
 _start:
-# -----------------------------------------------------------------
-# فاز ۰: مقداردهی اولیه ثبات پشته (Stack Pointer)
-# این مهمترین بخش برای جلوگیری از خطای حافظه است
-# -----------------------------------------------------------------
-    lui sp, 0x80000      # sp = 0x80000000 (یک آدرس بسیار بالا)
-    addi sp, sp, -4      # sp = 0x7FFFFFFC (انتهای حافظه، تراز شده)
 
-# -----------------------------------------------------------------
-# فاز ۱: تست دستورات مقداردهی و نوع U (LUI, AUIPC)
-# -----------------------------------------------------------------
-    # استفاده از LUI و ADDI برای بارگذاری آدرس بخش داده
-    lui s0, 0x0          # s0 = 0x00000000
-    addi s0, s0, 0x100   # s0 = 0x100 (آدرس پایه بخش داده) -> تست ADDI
+    # ==== Type U ====
+    lui x1, 0x12345           # x1 = 0x12345000
+    auipc x2, 0x00001         # x2 = PC + 0x1000
 
-    # تست AUIPC (Add Upper Immediate to PC)
-    auipc s1, 0x0        # s1 = آدرس فعلی (PC)
-    addi s1, s1, 20      # s1 = آدرس لیبل 'auipc_target' -> تست AUIPC و ADDI
-auipc_target:
-    # در این نقطه s1 باید حاوی آدرس همین لیبل باشد.
+    # ==== Type J ====
+    jal x3, label_jump        # x3 = return addr
 
-# -----------------------------------------------------------------
-# فاز ۲: تست دستورات نوع I (محاسباتی)
-# -----------------------------------------------------------------
-    addi t0, zero, 100   # t0 = 100
-    addi t1, zero, -50   # t1 = -50
-    slli t2, t0, 2       # t2 = 100 << 2 = 400      -> تست SLLI
-    srli t3, t0, 1       # t3 = 100 >> 1 = 50       -> تست SRLI
-    srai t4, t1, 2       # t4 = -50 >> 2 = -13      -> تست SRAI (شیفت حسابی)
-    andi t5, t0, 0x0F    # t5 = 100 & 15 = 4        -> تست ANDI
-    ori  t6, t0, 0x0F    # t6 = 100 | 15 = 111      -> تست ORI
-    xori a0, t0, 0xFF    # a0 = 100 ^ 255 = 155     -> تست XORI
-    slti a1, t1, 10      # a1 = (-50 < 10) ? 1 : 0  -> a1 = 1. تست SLTI
-    sltiu a2, t1, 10     # a2 = (-50u < 10u)? 1 : 0 -> a2 = 0. تست SLTIU (مقایسه بدون علامت)
+continue:
 
-# -----------------------------------------------------------------
-# فاز ۳: تست دستورات نوع R
-# -----------------------------------------------------------------
-    add  a3, t0, t2      # a3 = 100 + 400 = 500     -> تست ADD
-    sub  a4, t2, t0      # a4 = 400 - 100 = 300     -> تست SUB
-    and  a5, t0, t5      # a5 = 100 & 4 = 4         -> تست AND
-    or   a6, t2, t5      # a6 = 400 | 4 = 404       -> تست OR
-    xor  s2, t0, a0      # s2 = 100 ^ 155 = 255     -> تست XOR
-    slt  s3, t1, t0      # s3 = (-50 < 100) ? 1 : 0 -> s3 = 1. تست SLT
-    sltu s4, t1, t0      # s4 = (-50u < 100u)? 1 :0 -> s4 = 0. تست SLTU
-    # تست شیفت با رجیستر
-    addi t0, zero, 3     # t0 = 3 (مقدار شیفت)
-    addi t1, zero, 0x80000001 # t1 = -2147483647
-    sll  s5, t1, t0      # s5 = t1 << 3             -> تست SLL
-    srl  s6, t1, t0      # s6 = t1 >> 3 (منطقی)     -> تست SRL
-    sra  s7, t1, t0      # s7 = t1 >> 3 (حسابی)    -> تست SRA
+    # ==== Type R ====
+    add x4, x1, x2
+    sub x5, x4, x2
+    xor x6, x4, x5
+    or  x7, x5, x6
+    and x8, x6, x7
+    sll x9, x4, x5
+    srl x10, x7, x6
+    sra x11, x7, x6
+    slt x12, x5, x6
+    sltu x13, x6, x5
 
-# -----------------------------------------------------------------
-# فاز ۴: تست افزونه M (ضرب و تقسیم)
-# -----------------------------------------------------------------
-    li   t0, -10          # t0 = -10
-    li   t1, 3            # t1 = 3
-    li   t2, 0xFFFFFFFF   # t2 = -1 (unsigned max)
-    li   t3, 2            # t3 = 2
-    mul  a0, t0, t1      # a0 = -10 * 3 = -30       -> تست MUL
-    div  a1, t0, t1      # a1 = -10 / 3 = -3        -> تست DIV
-    rem  a2, t0, t1      # a2 = -10 % 3 = -1        -> تست REM
-    divu a3, t2, t3      # a3 = (2^32-1)/2          -> تست DIVU
-    remu a4, t2, t3      # a4 = (2^32-1)%2 = 1      -> تست REMU
-    mulh a5, t0, t0      # a5 = high_32(-10*-10)=0  -> تست MULH
-    mulhu a6, t2, t2     # a6 = high_32(max_u*max_u)-> تست MULHU
-    mulhsu s2, t0, t2    # s2 = high_32(-10*max_u)  -> تست MULHSU
+    # ==== Multiply Extension (R Type) ====
+    mul x14, x1, x2
+    mulh x15, x1, x2
+    mulhsu x16, x1, x2
+    mulhu x17, x1, x2
+    div x18, x1, x2
+    divu x19, x1, x2
+    rem x20, x1, x2
+    remu x21, x1, x2
 
-# -----------------------------------------------------------------
-# فاز ۵: تست دسترسی به حافظه (Load/Store)
-# -----------------------------------------------------------------
-    # Load
-    lw   t0, 0(s0)       # t0 = 0x12345678 (از initial_data_word) -> تست LW
-    lh   t1, 4(s0)       # t1 = 0xABCD -> sign-extended to 0xFFFFABCD -> تست LH
-    lb   t2, 6(s0)       # t2 = 0xFE -> sign-extended to 0xFFFFFFFE -> تست LB
-    lhu  t3, 4(s0)       # t3 = 0xABCD -> zero-extended to 0x0000ABCD -> تست LHU
-    lbu  t4, 6(s0)       # t4 = 0xFE -> zero-extended to 0x000000FE -> تست LBU
+    # ==== Type I ====
+    li x22, 100
+    ori x23, x22, 0xFF
+    andi x24, x23, 0x0F
+    slli x25, x24, 2
+    srli x26, x25, 1
 
-    # Store
-    # Offset ها بر اساس چینش جدید داده‌ها محاسبه شده‌اند
-    sw   t0, 12(s0)      # M[0x10C] = 0x12345678 (در result_storage_word) -> تست SW
-    sh   t3, 16(s0)      # M[0x110] = 0xABCD (در result_storage_half) -> تست SH
-    sb   t4, 18(s0)      # M[0x112] = 0xFE (در result_storage_byte) -> تست SB
+    # ==== Load (I2-type) ====
+    # آدرس val1 = 0x100
+    lui x27, 0x0          # upper 20 bits = 0
+    addi x27, x27, 0x100  # x27 = 0x100
 
-# -----------------------------------------------------------------
-# فاز ۶: تست دستورات پرش و انشعاب (Control Flow)
-# -----------------------------------------------------------------
-    # تست JAL (Jump and Link)
-    jal ra, my_subroutine # پرش به زیرروال و ذخیره آدرس بازگشت در ra
+    lb  x28, 0(x27)
+    lh  x29, 0(x27)
+    lw  x30, 0(x27)
+    lbu x31, 0(x27)
+    lhu x3, 0(x27)
 
-branch_tests:
-    li t0, 10
-    li t1, 10
-    li t2, 20
-    beq t0, t1, beq_taken # باید پرش کند -> تست BEQ
-    nop                  # این دستور نباید اجرا شود
-beq_taken:
-    bne t0, t2, bne_taken # باید پرش کند -> تست BNE
-    nop                  # این دستور نباید اجرا شود
-bne_taken:
-    blt t0, t2, blt_taken # باید پرش کند (10 < 20) -> تست BLT
-    nop                  # این دستور نباید اجرا شود
-blt_taken:
-    li t0, -1
-    li t1, 1
-    bltu t0, t1, bltu_skipped # نباید پرش کند (-1u > 1u) -> تست BLTU
-    nop                  # این دستور باید اجرا شود
-bltu_skipped:
-    bge t1, t0, bge_taken # باید پرش کند (1 >= -1) -> تست BGE
+    # ==== JALR ====
+    li x5, 4
+    jalr x6, 0(x5)
+
+    # ==== Store (S Type) ====
+    # val2 در آدرس 0x104 هست
+    lui x7, 0x0
+    addi x7, x7, 0x104
+
+    sb x1, 0(x7)
+    sh x2, 0(x7)
+    sw x3, 0(x7)
+
+    # ==== Branches (Type B) ====
+    beq x1, x1, equal_label
+    bne x1, x2, notequal_label
+    blt x3, x4, lt_label
+    bge x4, x3, ge_label
+    bltu x5, x6, ltu_label
+    bgeu x6, x5, geu_label
+
+equal_label:
+    li x10, 1
+
+notequal_label:
+    li x11, 2
+
+lt_label:
+    li x12, 3
+
+ge_label:
+    li x13, 4
+
+ltu_label:
+    li x14, 5
+
+geu_label:
+    li x15, 6
+
+label_jump:
     nop
-bge_taken:
-    bgeu t1, t0, bgeu_skipped # نباید پرش کند (1u < -1u) -> تست BGEU
-    nop
-bgeu_skipped:
-
-
-# ----------------- زیرروال برای تست JAL و JALR -------------------
-my_subroutine:
-    addi sp, sp, -4      # ایجاد فضا در پشته
-    sw   ra, 0(sp)       # ذخیره آدرس بازگشت
-    # ... بدنه زیرروال میتواند اینجا باشد ...
-    addi a0, a0, 1       # یک کار ساده انجام میدهیم
-    lw   ra, 0(sp)       # بازیابی آدرس بازگشت
-    addi sp, sp, 4       # آزاد کردن پشته
-    jalr zero, 0(ra)     # بازگشت به فراخواننده (آدرس ذخیره شده در ra) -> تست JALR
-
-# ------------------------- حلقه پایانی ---------------------------
-halt:
-    beq zero, zero, halt # حلقه بی‌نهایت برای متوقف کردن شبیه‌سازی
+    jal x0, continue
